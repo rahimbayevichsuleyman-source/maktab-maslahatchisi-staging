@@ -1,4 +1,9 @@
 const root = document.getElementById('app');
+let currentAdmin = null;
+
+const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[ch]));
 
 async function api(action, fields = {}) {
   let response;
@@ -160,18 +165,54 @@ function metric(label, value) {
   return box;
 }
 
-async function showDashboard(user) {
+function localDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+}
+
+function isoDateTime(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
+function roleLabel(role) {
+  return ({ super_admin: 'Bosh administrator', admin: 'Administrator', manager: 'Menejer', consultant: 'Maslahatchi', candidate: 'Nomzod' })[role] || role;
+}
+
+function statusLabel(status) {
+  return ({ pending: 'Kutilmoqda', approved: 'Tasdiqlangan', rejected: 'Rad etilgan', blocked: 'Bloklangan' })[status] || status;
+}
+
+function showDashboard(user) {
+  currentAdmin = user;
   root.innerHTML = `<header class="topbar"><div>${brand()}</div><div class="identity"><strong id="account-email"></strong><span id="account-role"></span></div></header>
-    <section class="card welcome"><h2>Kirish tasdiqlandi</h2><p class="subtle">Hisobingiz administrator paneliga ruxsatga ega.</p>
-      <button id="logout-button" type="button">Chiqish</button>
-      <div class="stage-note">1-bosqich: mustaqil web kirishi va server tomonidagi rol tekshiruvi. Keyingi bosqichda foydalanuvchilar, adabiyotlar, testlar va savollarni boshqarish oynalari qo‘shiladi.</div>
-    </section><section class="metrics" id="metrics" aria-label="Loyiha ko‘rsatkichlari"></section><p class="error" id="dashboard-error" role="alert"></p>`;
+    <nav class="admin-nav" aria-label="Administrator bo‘limlari">
+      <button type="button" class="nav-button active" data-section="overview">Umumiy</button>
+      <button type="button" class="nav-button" data-section="users">Foydalanuvchilar</button>
+      <button type="button" class="logout-button" id="logout-button">Chiqish</button>
+    </nav>
+    <main id="section-content" aria-live="polite"></main>`;
   document.getElementById('account-email').textContent = user.email || '';
-  document.getElementById('account-role').textContent = user.role === 'super_admin' ? 'Bosh administrator' : 'Administrator';
+  document.getElementById('account-role').textContent = roleLabel(user.role);
+  document.querySelectorAll('[data-section]').forEach((button) => button.addEventListener('click', () => {
+    document.querySelectorAll('[data-section]').forEach((item) => item.classList.toggle('active', item === button));
+    if (button.dataset.section === 'users') renderUsers();
+    else renderOverview();
+  }));
   document.getElementById('logout-button').addEventListener('click', async () => {
-    try { await api('web_logout'); showLogin(); }
-    catch (e) { document.getElementById('dashboard-error').textContent = e.message; }
+    try { await api('web_logout'); currentAdmin = null; showLogin(); }
+    catch (e) { const area = document.getElementById('section-content'); if (area) area.innerHTML = `<p class="error" role="alert">${esc(e.message)}</p>`; }
   });
+  renderOverview();
+}
+
+async function renderOverview() {
+  const area = document.getElementById('section-content');
+  if (!area) return;
+  area.innerHTML = '<section class="card loading-card">Ma’lumotlar yuklanmoqda…</section>';
   try {
     const { metrics } = await api('web_dashboard');
     const cards = [
@@ -181,11 +222,119 @@ async function showDashboard(user) {
       ['Faol savollar', metrics.questions],
       ['Yakunlangan urinishlar', metrics.completed_attempts]
     ];
+    area.innerHTML = `<section class="card welcome"><h2>Umumiy ko‘rsatkichlar</h2><p class="subtle">Loyiha ma’lumotlari.</p></section>
+      <section class="metrics" id="metrics" aria-label="Loyiha ko‘rsatkichlari"></section>
+      <p class="error" id="dashboard-error" role="alert"></p>`;
     const grid = document.getElementById('metrics');
     for (const [label, value] of cards) grid.append(metric(label, value));
   } catch (e) {
-    document.getElementById('dashboard-error').textContent = e.message;
+    area.innerHTML = `<section class="card welcome"><h2>Umumiy ko‘rsatkichlar</h2><p class="error" role="alert">${esc(e.message)}</p></section>`;
   }
+}
+
+function userCard(user) {
+  const roleOptions = [
+    ['candidate', 'Nomzod'], ['consultant', 'Maslahatchi'], ['manager', 'Menejer'], ['admin', 'Administrator'], ['super_admin', 'Bosh administrator']
+  ];
+  const statusOptions = [
+    ['pending', 'Kutilmoqda'], ['approved', 'Tasdiqlangan'], ['rejected', 'Rad etilgan'], ['blocked', 'Bloklangan']
+  ];
+  const canEditRoles = currentAdmin?.role === 'super_admin';
+  const protectedAdmin = !canEditRoles && ['admin', 'super_admin'].includes(user.role);
+  const disabled = protectedAdmin ? 'disabled' : '';
+  const roleField = canEditRoles
+    ? `<label>Rol<select name="role">${roleOptions.map(([value, label]) => `<option value="${value}" ${user.role === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`
+    : `<div class="readonly-field"><span class="field-name">Rol</span><strong>${esc(roleLabel(user.role))}</strong></div>`;
+  const statusField = `<label>Holat<select name="status" ${disabled}>${statusOptions.map(([value, label]) => `<option value="${value}" ${user.status === value ? 'selected' : ''}>${label}</option>`).join('')}</select></label>`;
+
+  return `<article class="card user-card">
+    <header class="user-heading"><div><h3>${esc(user.full_name || 'Ism kiritilmagan')}</h3>
+      <p class="muted">Telegram ID: ${esc(user.telegram_id)}${user.username ? ` · @${esc(user.username)}` : ''}</p></div>
+      <span class="user-status">${esc(statusLabel(user.status))}</span></header>
+    <form data-user-form="${esc(user.id)}" class="user-form">
+      <div class="user-fields">
+        <label>F.I.Sh.<input name="full_name" maxlength="250" value="${esc(user.full_name || '')}" ${disabled} required></label>
+        <label>Telefon<input name="phone" maxlength="250" value="${esc(user.phone || '')}" ${disabled}></label>
+        <label>Tashkilot<input name="organization" maxlength="250" value="${esc(user.organization || '')}" ${disabled}></label>
+        <label>Lavozim<input name="position" maxlength="250" value="${esc(user.position || '')}" ${disabled}></label>
+        ${roleField}
+        ${statusField}
+        <label>Kirish boshlanishi<input type="datetime-local" name="access_from" value="${localDateTime(user.access_from)}" ${disabled}></label>
+        <label>Kirish tugashi<input type="datetime-local" name="access_until" value="${localDateTime(user.access_until)}" ${disabled}></label>
+      </div>
+      ${protectedAdmin ? '<p class="muted access-note">Administrator hisoblarini faqat bosh administrator o‘zgartira oladi.</p>' : '<p class="muted access-note">Nomzodga testlar ochilishi uchun holatini “Tasdiqlangan” qilib, kirish tugash sanasini belgilang.</p>'}
+      <div class="user-actions"><button type="submit" class="small-button" ${disabled}>Saqlash</button><span class="save-message" data-save-message="${esc(user.id)}" role="status"></span></div>
+    </form>
+  </article>`;
+}
+
+async function renderUsers(searchTerm = '') {
+  const area = document.getElementById('section-content');
+  if (!area) return;
+  area.innerHTML = `<section class="card users-panel"><h2>Foydalanuvchilar</h2><p class="subtle">Telegram orqali ro‘yxatdan o‘tgan foydalanuvchilarni qidiring va kirish ruxsatini boshqaring.</p>
+    <label class="search-label">Qidirish<input id="user-search" type="search" placeholder="Ism, Telegram ID, telefon yoki tashkilot" value="${esc(searchTerm)}"></label>
+    <div id="user-list"><section class="card loading-card">Foydalanuvchilar yuklanmoqda…</section></div>
+    <p class="error" id="users-error" role="alert"></p></section>`;
+
+  let users;
+  try {
+    ({ users } = await api('admin_data'));
+  } catch (e) {
+    document.getElementById('users-error').textContent = e.message;
+    document.getElementById('user-list').innerHTML = '';
+    return;
+  }
+
+  const list = document.getElementById('user-list');
+  const search = document.getElementById('user-search');
+  const paint = () => {
+    const query = search.value.trim().toLocaleLowerCase();
+    const filtered = (users || []).filter((u) => [u.full_name, u.telegram_id, u.username, u.phone, u.organization, u.position]
+      .some((value) => String(value || '').toLocaleLowerCase().includes(query)));
+    list.innerHTML = filtered.length
+      ? filtered.map(userCard).join('')
+      : '<section class="card empty-state">Mos foydalanuvchi topilmadi.</section>';
+    list.querySelectorAll('[data-user-form]').forEach((form) => form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const button = form.querySelector('button[type="submit"]');
+      const message = form.querySelector('[data-save-message]');
+      const values = new FormData(form);
+      const payload = {
+        user_id: form.dataset.userForm,
+        full_name: values.get('full_name'),
+        phone: values.get('phone'),
+        organization: values.get('organization'),
+        position: values.get('position'),
+        status: values.get('status'),
+        access_from: isoDateTime(values.get('access_from')),
+        access_until: isoDateTime(values.get('access_until'))
+      };
+      if (currentAdmin?.role === 'super_admin') payload.role = values.get('role');
+      button.disabled = true;
+      message.textContent = 'Saqlanmoqda…';
+      message.classList.remove('save-error');
+      try {
+        const result = await api('admin_user_update', payload);
+        const index = users.findIndex((item) => item.id === form.dataset.userForm);
+        if (index >= 0 && result.user) users[index] = result.user;
+        if (result.user) {
+          const card = form.closest('.user-card');
+          const name = card?.querySelector('.user-heading h3');
+          const status = card?.querySelector('.user-status');
+          if (name) name.textContent = result.user.full_name || 'Ism kiritilmagan';
+          if (status) status.textContent = statusLabel(result.user.status);
+        }
+        message.textContent = 'Saqlandi.';
+      } catch (e) {
+        message.textContent = e.message;
+        message.classList.add('save-error');
+      } finally {
+        button.disabled = false;
+      }
+    }));
+  };
+  search.addEventListener('input', paint);
+  paint();
 }
 
 async function start() {

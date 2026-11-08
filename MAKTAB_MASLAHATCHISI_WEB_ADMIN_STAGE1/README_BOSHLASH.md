@@ -52,7 +52,7 @@ BotFather → Menu Button → HTTPS Netlify manzili. Botdagi mini-ilovani Telegr
    `insert into public.mc_web_admins(auth_user_id, role) values ('AUTH_USER_UUID', 'super_admin');`
    Keyingi xodimlar uchun `admin` rolini bering. Ruxsatni bekor qilish uchun `active=false` qiling yoki yozuvni olib tashlang.
 5. Netlify sozlamalarida `SUPABASE_ANON_KEY` muhit qiymatini kiriting. Bu kalit Functions da email va parolni tekshiradi; `SUPABASE_SERVICE_ROLE_KEY` maxfiy qoladi va faqat Functions da ishlatiladi.
-6. Saytda `/admin/` manzilini oching. **Parolni unutdingizmi?** orqali tiklash xatini yuborish va yangi parol o‘rnatish mumkin. Kirish sessiyasi 12 soat amal qiladi, `HttpOnly`, `Secure`, `SameSite=Strict` cookie orqali saqlanadi; API barcha murojaatlarda `mc_web_admins` ruxsatini qayta tekshiradi. Panelda administrator hisobini ochiq yaratish shakli mavjud emas.
+6. Saytda `/admin/` manzilini oching. **Parolni unutdingizmi?** orqali tiklash xatini yuborish va yangi parol o‘rnatish mumkin. **Foydalanuvchilar** bo‘limida Telegram foydalanuvchilarini qidirish, holat/rol va kirish muddatlarini boshqarish mumkin. Kirish sessiyasi 12 soat amal qiladi, `HttpOnly`, `Secure`, `SameSite=Strict` cookie orqali saqlanadi; API barcha murojaatlarda `mc_web_admins` ruxsatini qayta tekshiradi. Panelda administrator hisobini ochiq yaratish shakli mavjud emas.
 ## 7. Testlar
 `npm test` — test logikasi va konfiguratsiya tekshiruvlari. Rasmiy imtihon: 30 savol, 80 daqiqa, 78 ball. Savollar bazasi ataylab bo‘sh: haqiqiy manbalarga asoslangan savollar admin tomonidan kiritilishi kerak.
 
