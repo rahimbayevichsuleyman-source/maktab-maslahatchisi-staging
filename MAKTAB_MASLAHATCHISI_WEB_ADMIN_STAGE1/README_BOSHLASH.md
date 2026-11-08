@@ -46,12 +46,13 @@ BotFather → Menu Button → HTTPS Netlify manzili. Botdagi mini-ilovani Telegr
 
 ## 6. Web administrator paneli
 1. `supabase/schema.sql` ni ishga tushiring. `mc_web_admins` jadvali web administratorlar uchun alohida ruxsat saqlaydi; jadvalga bevosita murojaat faqat server Functions orqali `service_role` yordamida amalga oshadi.
-2. Supabase Auth → Users orqali administrator uchun tasdiqlangan email/parol hisobini yarating.
-3. Foydalanuvchining Auth UUID qiymatini olib, SQL Editor da ruxsat bering:
+2. Supabase Dashboard → Authentication → URL Configuration bo‘limida **Site URL** va **Redirect URLs** ga saytingizning admin manzilini kiriting: `https://SAYTINGIZ.netlify.app/admin/`. Parol tiklash havolasi shu sahifaga qaytadi.
+3. Supabase Auth → Users orqali administrator uchun tasdiqlangan email/parol hisobini yarating.
+4. Foydalanuvchining Auth UUID qiymatini olib, SQL Editor da ruxsat bering:
    `insert into public.mc_web_admins(auth_user_id, role) values ('AUTH_USER_UUID', 'super_admin');`
    Keyingi xodimlar uchun `admin` rolini bering. Ruxsatni bekor qilish uchun `active=false` qiling yoki yozuvni olib tashlang.
-4. Netlify sozlamalarida `SUPABASE_ANON_KEY` muhit qiymatini kiriting. Bu kalit Functions da email va parolni tekshiradi; `SUPABASE_SERVICE_ROLE_KEY` maxfiy qoladi va faqat Functions da ishlatiladi.
-5. Saytda `/admin/` manzilini oching. Kirish sessiyasi 12 soat amal qiladi, `HttpOnly`, `Secure`, `SameSite=Strict` cookie orqali saqlanadi; API barcha murojaatlarda `mc_web_admins` ruxsatini qayta tekshiradi. Panelda administrator hisobini ochiq yaratish shakli mavjud emas.
+5. Netlify sozlamalarida `SUPABASE_ANON_KEY` muhit qiymatini kiriting. Bu kalit Functions da email va parolni tekshiradi; `SUPABASE_SERVICE_ROLE_KEY` maxfiy qoladi va faqat Functions da ishlatiladi.
+6. Saytda `/admin/` manzilini oching. **Parolni unutdingizmi?** orqali tiklash xatini yuborish va yangi parol o‘rnatish mumkin. Kirish sessiyasi 12 soat amal qiladi, `HttpOnly`, `Secure`, `SameSite=Strict` cookie orqali saqlanadi; API barcha murojaatlarda `mc_web_admins` ruxsatini qayta tekshiradi. Panelda administrator hisobini ochiq yaratish shakli mavjud emas.
 ## 7. Testlar
 `npm test` — test logikasi va konfiguratsiya tekshiruvlari. Rasmiy imtihon: 30 savol, 80 daqiqa, 78 ball. Savollar bazasi ataylab bo‘sh: haqiqiy manbalarga asoslangan savollar admin tomonidan kiritilishi kerak.
 

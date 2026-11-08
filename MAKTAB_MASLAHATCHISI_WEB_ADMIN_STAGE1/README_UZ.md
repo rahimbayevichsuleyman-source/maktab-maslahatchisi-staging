@@ -84,7 +84,7 @@ Savollarni testga qo‘shgach, “Testlar” bo‘limida **Nashr qilish** tugmas
 ## Ishga tushirishdan oldin biling
 
 - Test banki bo‘sh: savollar uydirilmagan. Manbali savollar uchun kitob/boblar matni kerak.
-- Nomzodlar ilovaga Telegram Mini App orqali kiradi. Administratorlar uchun `/admin/` manzilida alohida email/parol kirishi bor.
+- Nomzodlar ilovaga Telegram Mini App orqali kiradi. Administratorlar uchun `/admin/` manzilida alohida email/parol kirishi bor; parol tiklash uchun Supabase Auth URL Configuration’da Site URL va ruxsat etilgan Redirect URL ni shu `/admin/` manziliga sozlang.
 - Y1–Y4 turlarining rasmiy imtihondagi aniq taqsimoti manbada ko‘rsatilmagan — savollar kompetensiya bo‘yicha tasodifiy tanlanadi.
 - Nomzod javoblari shu qurilmada (localStorage) saqlanadi; boshqa qurilmada davom ettirilsa, savollar qaytadi, lekin belgilangan javoblar qaytmaydi.
 - Mustaqil test vaqti serverda faqat `duration_minutes > 0` bo‘lsa nazorat qilinadi.

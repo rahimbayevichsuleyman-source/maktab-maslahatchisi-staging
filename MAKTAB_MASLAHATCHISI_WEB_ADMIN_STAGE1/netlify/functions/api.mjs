@@ -57,6 +57,75 @@ async function webAdminLogin(body, db) {
   return { token, user: { email: authUser.email, role: access.role } };
 }
 
+const recoveryNotice = 'Agar bu email administrator hisobiga bog‘langan bo‘lsa, parol tiklash xati yuborildi.';
+
+function requestOrigin(event) {
+  requireSameOrigin(event);
+  const headers = event.headers || {};
+  return new URL(headers.origin || headers.Origin).origin;
+}
+
+async function requestWebPasswordRecovery(body, event) {
+  if (!process.env.SUPABASE_ANON_KEY) throw new AppError('Web administrator login sozlamasi to‘liq emas.', 503);
+  const email = str(body.email, 254).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new AppError('Email manzilini tekshiring.', 400);
+
+  const redirectTo = new URL('/admin/', requestOrigin(event)).toString();
+  let result;
+  try {
+    result = await webAuth().auth.resetPasswordForEmail(email, { redirectTo });
+  } catch (error) {
+    console.error('web password recovery request failed', error?.code || error?.name || 'unknown');
+    throw new AppError('Tiklash xatini yuborib bo‘lmadi. Keyinroq qayta urinib ko‘ring.', 503);
+  }
+
+  if (result.error) {
+    const message = String(result.error.message || '');
+    const code = String(result.error.code || '');
+    if (result.error.status === 429 || /rate_limit/i.test(code) || /email rate limit|rate limit exceeded/i.test(message))
+      throw new AppError('Email yuborish limiti to‘ldi. Biroz kutib, qayta urinib ko‘ring.', 429);
+    if (/redirect.*(allowed|url)|redirect_to|url not allowed/i.test(message))
+      throw new AppError('Supabase URL Configuration manzilini tekshiring.', 503);
+    console.error('web password recovery request failed', result.error.code || result.error.status || 'unknown');
+    throw new AppError('Tiklash xatini yuborib bo‘lmadi. Keyinroq qayta urinib ko‘ring.', 503);
+  }
+
+  return { ok: true, message: recoveryNotice };
+}
+
+async function updateWebPassword(body) {
+  if (!process.env.SUPABASE_ANON_KEY) throw new AppError('Web administrator login sozlamasi to‘liq emas.', 503);
+  const accessToken = String(body.access_token || '');
+  const password = String(body.password ?? '');
+  if (!accessToken || accessToken.length > 8192) throw new AppError('Tiklash havolasi yaroqsiz yoki muddati tugagan.', 401);
+  if (password.length < 8 || password.length > 1024) throw new AppError('Yangi parol kamida 8 ta belgidan iborat bo‘lsin.', 400);
+
+  let userResult;
+  try { userResult = await webAuth().auth.getUser(accessToken); }
+  catch (error) {
+    console.error('web password recovery token check failed', error?.code || error?.name || 'unknown');
+    throw new AppError('Tiklash havolasi yaroqsiz yoki muddati tugagan.', 401);
+  }
+  const authUser = userResult.data?.user;
+  if (userResult.error || !authUser?.id) throw new AppError('Tiklash havolasi yaroqsiz yoki muddati tugagan.', 401);
+
+  const access = must(await supabase().from('mc_web_admins').select('role,active').eq('auth_user_id', authUser.id).maybeSingle());
+  if (!access?.active || !['admin', 'super_admin'].includes(access.role))
+    throw new AppError('Ushbu hisobga administrator paneliga kirish berilmagan.', 403);
+
+  let updateResult;
+  try { updateResult = await supabase().auth.admin.updateUserById(authUser.id, { password }); }
+  catch (error) {
+    console.error('web password update failed', error?.code || error?.name || 'unknown');
+    throw new AppError('Yangi parolni saqlab bo‘lmadi. Yangi tiklash xatini so‘rang.', 503);
+  }
+  if (updateResult.error) {
+    console.error('web password update failed', updateResult.error.code || updateResult.error.status || 'unknown');
+    throw new AppError('Yangi parolni saqlab bo‘lmadi. Yangi tiklash xatini so‘rang.', 503);
+  }
+  return { ok: true };
+}
+
 /* ---------- Sessiya (HMAC imzolangan token) ---------- */
 const b64 = (v) => Buffer.from(v).toString('base64url');
 const hmac = (body) => crypto.createHmac('sha256', process.env.APP_SESSION_SECRET).update(body).digest();
@@ -501,6 +570,17 @@ export async function handler(event) {
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'JSON format xato.' }); }
   const action = String(body.action || '');
   try {
+    if (action === 'web_password_recovery') {
+      const result = await requestWebPasswordRecovery(body, event);
+      return json(200, result);
+    }
+    if (action === 'web_password_update') {
+      requireSameOrigin(event);
+      const result = await updateWebPassword(body);
+      const response = json(200, result);
+      response.headers['set-cookie'] = expiredSessionCookie;
+      return response;
+    }
     if (action === 'web_login') {
       requireSameOrigin(event);
       const result = await webAdminLogin(body, supabase());
