@@ -1,0 +1,21 @@
+{
+  "name": "maktab-maslahatchisi-miniapp",
+  "version": "2.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "netlify dev",
+    "build": "echo 'Static Netlify build'",
+    "test": "node --test tests/*.test.mjs",
+    "check": "npm test && node --check netlify/functions/api.mjs && node --check netlify/functions/bot-webhook.mjs && node --check public/app.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  },
+  "devDependencies": {
+    "netlify-cli": "^23.5.0"
+  }
+}
